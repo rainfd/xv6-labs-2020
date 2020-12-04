@@ -3,41 +3,77 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "kernel/param.h"
-#include "kernel/fs.h"
 #include "user/user.h"
 
-int
-xargs()
+void readline(char *buf, int max)
 {
-    ;
+    int i, cc;
+    char c;
+
+    for (i = 0; i + 1 < max;)
+    {
+        cc = read(0, &c, 1);
+        if (cc < 1)
+            break;
+        if (c == '\n' || c == '\r' || c == '\0')
+            break;
+        else
+            buf[i++] = c;
+    }
+    buf[i] = '\0';
 }
 
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-    int i, n, length;
-    char *arg, buf[4096];
+    int i, pid;
+    // char *start, *end, buf[4096];
+    // bug: input > 4096
 
+    // char buf[512], argvs[MAXARG][512];
+    char buf[512], **argvs;
+
+    if (argc < 2)
+    {
+        fprintf(2, "[command] | xargs [command]\n");
+        exit(1);
+    }
     if (argc > MAXARG)
+    {
         fprintf(2, "too many parameters!\n");
+        exit(1);
+    }
 
-    // read from stdin 
-    // fork -> exec argv + stdin
-    while (n = read(0, buf, 4096) > 0) {
-        length = strlen(buf);
+    argvs = malloc(sizeof(*argvs) * (argc + 1));
+    for (i = 1; i < argc; i++)
+    {
+        argvs[i - 1] = malloc(strlen(argv[i]) + 1);
+        strcpy(argvs[i - 1], argv[i]);
+    }
+    argvs[argc - 1] = malloc(512);
+    argvs[argc] = 0;
 
-        strchr(buf, "\n")
+    while (1)
+    {
+        readline(buf, 512);
+        if (strlen(buf) <= 0)
+            break;
 
-        for (i=0;i<length;i++) {
-            if (buf[i] == "\n") {
-                //memmove(arg, buf, i);
-                //arg[i] = "\0";
-                //arg++ = "\0";
-            } else {
-                //*arg++ = *buf++;
-            }
+        strcpy(argvs[argc - 1], buf);
+
+        pid = fork();
+        if (pid == 0)
+        {
+            exec(argvs[0], argvs);
+            exit(0);
         }
     }
+
+    wait(0);
+
+    // for (i = 0; i < argc + 2; i++)
+    // printf("argc %d %s\n", i, argvs[i]);
+    // free(argvs[i]);
+    // free(argvs);
 
     exit(0);
 }
