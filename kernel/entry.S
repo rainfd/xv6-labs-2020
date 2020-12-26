@@ -8,8 +8,8 @@ _entry:
         # stack0 is declared in start.c,
         # with a 4096-byte stack per CPU.
         # sp = stack0 + (hartid * 4096)
-        la sp, stack0
-        li a0, 1024*4
+        la sp, stack0 # 伪指令load address => auipc sp, high(stack); ld rd, low(stask) 
+        li a0, 1024*4 # 立即数加载
 	csrr a1, mhartid
         addi a1, a1, 1
         mul a0, a0, a1

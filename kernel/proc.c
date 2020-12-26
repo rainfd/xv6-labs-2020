@@ -230,6 +230,8 @@ userinit(void)
 
   p->state = RUNNABLE;
 
+  p->mask = -1;
+
   release(&p->lock);
 }
 
@@ -282,6 +284,9 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+
+  // copy tarce mask
+  np->mask = p->mask;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -692,4 +697,20 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// Count the number of process whose state is not UNUSED
+int
+nproc(void)
+{
+  struct proc *p;
+  int n;
+
+  n = 0;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if (p->state == UNUSED)
+      continue;
+    n++;
+  }
+  return n;
 }
