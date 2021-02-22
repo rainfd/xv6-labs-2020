@@ -47,10 +47,27 @@ kvminit()
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 }
 
+// create a clone kernel page table for user process.
+pagetable_t
+ukvminit()
+{
+  pagetable_t pagetable = (pagetable_t) kalloc();
+  memcmp(pagetable, kernel_pagetable, PGSIZE);
+  return pagetable;
+}
+
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
 void
 kvminithart()
+{
+  w_satp(MAKE_SATP(kernel_pagetable));
+  sfence_vma();
+}
+
+// Swith the process kernel page table
+void
+ukvminithart(pagetable_t kernel_pagetable)
 {
   w_satp(MAKE_SATP(kernel_pagetable));
   sfence_vma();
