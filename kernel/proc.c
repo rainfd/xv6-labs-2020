@@ -39,10 +39,9 @@ void procinit(void)
     // Allocate a page for the process's kernel stack.
     // Map it high in memory, followed by an invalid
     // guard page.
-    // char *pa = kalloc();
-    // char *pa = pagetable;
-    // if (pa == 0)
-    //   panic("kalloc");
+    char *pa = kalloc();
+    if (pa == 0)
+      panic("kalloc");
     uint64 va = KSTACK((int)(p - proc));
     kvmmap(va, (uint64)pagetable, PGSIZE, PTE_R | PTE_W);
     p->kstack = va;
@@ -143,6 +142,14 @@ found:
     release(&p->lock);
     return 0;
   }
+
+  // Swith the stack for the process's kernel stack.
+  uint64 va = KSTACK((int)(p - proc));
+  printf("before kernel\n");
+  // vmprint(p->kernel_pagetable);
+  kvmmap(va, (uint64)p->kernel_pagetable, PGSIZE, PTE_R | PTE_W);
+  printf("after kernel\n");
+  p->kstack = va;
 
   // Set up new context to start executing at forkret,
   // which returns to user space.

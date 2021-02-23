@@ -52,9 +52,69 @@ pagetable_t
 ukvminit()
 {
   pagetable_t pagetable = (pagetable_t) kalloc();
-  memcmp(pagetable, kernel_pagetable, PGSIZE);
+  memset(kernel_pagetable, 0, PGSIZE);
+
+  // uart registers
+  mappages(pagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+
+  // virtio mmio disk interface
+  mappages(pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+
+  // CLINT
+  mappages(pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+
+  // PLIC
+  mappages(pagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+
+  // map kernel text executable and read-only.
+  mappages(pagetable, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+
+  // map kernel data and the physical RAM we'll make use of.
+  mappages(pagetable, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+
+  // map the trampoline for trap entry/exit to
+  // the highest virtual address in the kernel.
+  mappages(pagetable, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+
   return pagetable;
 }
+
+// pagetable_t
+// kvmcopy()
+// {
+//   pagetable_t pagetable = (pagetable_t) kalloc();
+//   memset(kernel_pagetable, 0, PGSIZE);
+
+//   // pagetable_t src = kernel_pagetable;
+//   // pagetable_t dst = pagetable;
+
+//   for(int level=2; level > 0; level--) {
+//     for(int i = 0; i < 512; i++) {
+//        pte_t *pte = &kernel_pagetable[i];
+//     }
+//   }
+// }
+
+// pagetable_t
+// pagecopy(pagetable_t dst, pagetable_t src)
+// {
+//   memmove(dst, src, PGSIZE);
+
+// }
+
+// // set all pages invalid
+// void
+// invalidwalk(pagetable_t pagetable)
+// {
+//   for(int i = 0; i < 512; i++){
+//     pte_t pte = pagetable[i];
+//     if (pte & PTE_V) {
+//       uint64 child = PTE2PA(pte);
+//       invalidwalk((pagetable_t)child);
+//       pagetable[i] &= ~(PTE_V);
+//     }
+//   }
+// }
 
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
