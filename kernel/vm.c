@@ -3,8 +3,11 @@
 #include "memlayout.h"
 #include "elf.h"
 #include "riscv.h"
+#include "spinlock.h"
+#include "proc.h"
 #include "defs.h"
 #include "fs.h"
+
 
 /*
  * the kernel's page table.
@@ -46,17 +49,25 @@ void kvminit()
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 }
 
-// set all pages invalid
-void invalidwalk(pagetable_t pagetable)
+// set all virtual pages invalid
+void vmclear(pagetable_t pagetable, int level)
 {
+  if (level > 2)
+    panic("vmclear overflow");
+
+
   for (int i = 0; i < 512; i++)
   {
     pte_t pte = pagetable[i];
+    // pte = pagetable[i];
     if (pte & PTE_V)
     {
       uint64 child = PTE2PA(pte);
-      invalidwalk((pagetable_t)child);
+      if (level > 0)
+        vmclear((pagetable_t)child, level-1);
+      // printf("b p: %ld c: %d l: %d\n", pte, pagetable[i], level);
       pagetable[i] &= ~(PTE_V);
+      // printf("p: %ld c: %d l: %d\n", pte, pagetable[i], level);
     }
   }
 }
@@ -75,7 +86,7 @@ ukvminit()
   mappages(pagetable, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W);
 
   // CLINT
-  mappages(pagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W);
+  // mappages(pagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W);
 
   // PLIC
   mappages(pagetable, PLIC, 0x400000, PLIC, PTE_R | PTE_W);
@@ -90,8 +101,6 @@ ukvminit()
   // the highest virtual address in the kernel.
   mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X);
 
-  invalidwalk(pagetable);
-
   return pagetable;
 }
 
@@ -104,9 +113,9 @@ void kvminithart()
 }
 
 // Swith the process kernel page table
-void ukvminithart(pagetable_t kernel_pagetable)
+void ukvminithart(pagetable_t pagetable)
 {
-  w_satp(MAKE_SATP(kernel_pagetable));
+  w_satp(MAKE_SATP(pagetable));
   sfence_vma();
 }
 
@@ -189,7 +198,7 @@ kvmpa(uint64 va)
   pte_t *pte;
   uint64 pa;
 
-  pte = walk(kernel_pagetable, va, 0);
+  pte = walk(myproc()->kernel_pagetable, va, 0);
   if (pte == 0)
     panic("kvmpa");
   if ((*pte & PTE_V) == 0)
