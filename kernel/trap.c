@@ -64,14 +64,25 @@ void usertrap(void)
 
     syscall();
   }
-  // else if (r_scause() == 15 || r_scause() == 13)
-  else if (r_scause() == 15)
+  // 13 load page fault / 15 store page fault
+  else if (r_scause() == 15 || r_scause() == 13)
+  // else if (r_scause() == 13)
   {
 
     // page fault process
     char *mem;
     struct proc *p = myproc();
     uint64 va = r_stval();
+
+    if (va > MAXVA)
+    {
+      p->killed = 1;
+      goto kill;
+    }
+
+    if (va > p->sz)
+      goto unexpected;
+
     va = PGROUNDDOWN(va);
 
     // printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
@@ -79,13 +90,15 @@ void usertrap(void)
     // vmprint(p->pagetable);
 
     mem = kalloc();
-    if (mem != 0)
+    if (mem == 0)
     {
-      memset(mem, 0, PGSIZE);
-      if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W | PTE_X | PTE_R | PTE_U) != 0)
-      {
-        kfree(mem);
-      }
+      p->killed = 1;
+      goto kill;
+    }
+    memset(mem, 0, PGSIZE);
+    if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W | PTE_X | PTE_R | PTE_U) != 0)
+    {
+      kfree(mem);
     }
   }
   else if ((which_dev = devintr()) != 0)
@@ -94,11 +107,13 @@ void usertrap(void)
   }
   else
   {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+  unexpected:
+    // printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+    // printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
   }
 
+kill:
   if (p->killed)
     exit(-1);
 
