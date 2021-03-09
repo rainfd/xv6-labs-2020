@@ -118,6 +118,7 @@ void
 panic(char *s)
 {
   pr.locking = 0;
+  backtrace();
   printf("panic: ");
   printf(s);
   printf("\n");
@@ -131,4 +132,29 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+// frame pointer s0
+// stack pointer stack sp
+// return address ra
+void 
+backtrace(void)
+{
+  uint64 *fp, *prv_fp, *ra, *top, *down;
+
+  fp = (uint64 *)r_fp();
+  // printf("fp: 0x%p", fp);
+
+  top = (uint64 *)PGROUNDUP((uint64)fp);
+  down = (uint64 *)PGROUNDDOWN((uint64)fp);
+  // printf("top: %p down: %p\n", top, down);
+
+  printf("backtrace: \n");
+  do {
+    ra = (uint64 *)((char *)fp - 8);
+    printf("ra: %p\n", *ra);
+    prv_fp = (uint64 *)((char *)fp - 16);
+    fp = (uint64 *)*prv_fp;
+  // printf("fp: %p, top: %p down: %p\n", fp, top, down);
+  } while(down <= fp && fp <= top);
 }
