@@ -3,6 +3,8 @@
 #include "memlayout.h"
 #include "elf.h"
 #include "riscv.h"
+#include "spinlock.h"
+#include "proc.h"
 #include "defs.h"
 #include "fs.h"
 
@@ -374,7 +376,19 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
     if (pa0 == 0)
-      return -1;
+    {
+      if (dstva > myproc()->sz)
+        return -1;
+      char *mem = kalloc();
+      if (mem == 0)
+        return -1;
+      memset(mem, 0, PGSIZE);
+      if (mappages(pagetable, va0, PGSIZE, (uint64)mem, PTE_W | PTE_X | PTE_R | PTE_U) != 0)
+      {
+        kfree(mem);
+      }
+      pa0 = (uint64)mem;
+    }
     n = PGSIZE - (dstva - va0);
     if (n > len)
       n = len;
@@ -399,7 +413,20 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
     if (pa0 == 0)
-      return -1;
+    {
+      if (srcva > myproc()->sz)
+        return -1;
+      char *mem = kalloc();
+      if (mem == 0)
+        return -1;
+
+      memset(mem, 0, PGSIZE);
+      if (mappages(pagetable, va0, PGSIZE, (uint64)mem, PTE_W | PTE_X | PTE_R | PTE_U) != 0)
+      {
+        kfree(mem);
+      }
+      pa0 = (uint64)mem;
+    }
     n = PGSIZE - (srcva - va0);
     if (n > len)
       n = len;
