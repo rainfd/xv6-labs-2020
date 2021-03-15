@@ -2,48 +2,30 @@
 #include "riscv.h"
 #include "defs.h"
 #include "param.h"
+#include "spinlock.h"
+#include "proc.h"
 
-int sig_status = 0;
-
-void
-sigalarm(int interval, void handler(void))
+int
+sigalarm(int ticks, void (*handler)())
 {
-  int pid;
-
-  if (interval == 0) {
-    sig_status = 0;
-    return;
-  }
-
-  if ((pid = fork()) < 0) {
-      panic("fork failed");
-  }
-  sig_status = 1;
-  if (pid == 0) {
-    while (sig_status) {
-
-      for (int i = 0; i < interval * 500000; i++) {
-          if (sig_status)
-            return;
-          asm volatile("nop"); // avoid compiler optimizing away loop
-      }
-
-      handler();
-    }
-  }
+  struct proc *p = myproc();
+  p->ticks = ticks;
+  p->lticks = ticks;
+  p->handler = handler;
+  return 0;
 }
 
 uint64
 sys_sigalarm(void)
 {
-  int interval;
+  int ticks;
   uint64 addr;
 
-  if (argint(0, &interval) < 0)
+  if (argint(0, &ticks) < 0)
     return -1;
   if (argaddr(0, &addr) < 0)
     return -1;
-  sigalarm(interval, (void (*)(void))addr);
+  sigalarm(ticks, (void (*)())addr);
   return 0;
 }
 
@@ -51,6 +33,8 @@ sys_sigalarm(void)
 uint64
 sys_sigreturn(void)
 {
-  sig_status = 0;
+  struct proc *p = myproc();
+  p->done = 1;
+  p->lticks = p->ticks;
   return 0;
 }

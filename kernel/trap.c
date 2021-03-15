@@ -67,6 +67,15 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+    // time tick
+    if (which_dev == 2) {
+      if (p->handler != 0) {
+          p->lticks--;
+          // if (p->lticks == 0)
+          //   usertrapret();
+      }
+        
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -115,6 +124,18 @@ usertrapret(void)
   x |= SSTATUS_SPIE; // enable interrupts in user mode
   w_sstatus(x);
 
+  // jump to alarm handler
+  if (p->handler != 0 && p->lticks == 0) {
+    printf("call handler, jump to :%p\n", (uint64 *)p->handler);
+    p->epc = p->trapframe->epc + 4;
+    p->trapframe->epc = p->handler;
+  }
+  // alram handler done, return to user code
+  else if (p->handler != 0 && p->done == 1){
+    printf("after done, jump to :%p\n", (uint64 *)p->epc);
+    p->done = 0;
+    p->trapframe->epc = p->epc;
+  } 
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);
 
