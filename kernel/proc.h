@@ -105,9 +105,9 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   // alarm
-  int ticks;                // sigalarm tick
-  int lticks;               // ticks left after last call
-  void (*handler)();           // alarm handler
-  uint64 epc;                  // restore user pc
-  uint64 done;
+  int ticks;                     // sigalarm tick
+  int lticks;                    // ticks left after last call
+  void (*handler)();             // alarm handler
+  struct trapframe *retrapframe; // data page for restore
+  uint64 done;                   // handler done
 };
