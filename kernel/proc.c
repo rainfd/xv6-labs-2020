@@ -111,7 +111,8 @@ found:
   p->ticks = 0;
   p->lticks = 0;
   p->handler = 0;
-  p->done = 0;
+  p->handlerdone = 0;
+  p->handling = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){

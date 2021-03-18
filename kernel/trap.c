@@ -69,10 +69,10 @@ usertrap(void)
     // ok
     // time tick
     if (which_dev == 2) {
-      if (p->handler != 0) {
-          p->lticks--;
-          // if (p->lticks == 0)
-          //   usertrapret();
+      if (p->handler != 0 && p->handling == 0) {
+          if (p->lticks > p->ticks)
+            p->lticks = 0;
+          p->lticks++;
       }
         
     }
@@ -107,9 +107,13 @@ saveregister(void)
     }
   }
 
+  p->retrapframe->kernel_satp = p->trapframe->kernel_satp;
+  p->retrapframe->kernel_sp = p->trapframe->kernel_sp;
+  p->retrapframe->kernel_trap = p->trapframe->kernel_trap;
   p->retrapframe->epc = p->trapframe->epc;
+  p->retrapframe->kernel_hartid = p->trapframe->kernel_hartid;
 
-  p->retrapframe->a0 = p->trapframe->a0;
+  p->retrapframe->ra = p->trapframe->ra;
   p->retrapframe->sp = p->trapframe->sp;
   p->retrapframe->gp = p->trapframe->gp;
   p->retrapframe->tp = p->trapframe->tp;
@@ -118,6 +122,7 @@ saveregister(void)
   p->retrapframe->t2 = p->trapframe->t2;
   p->retrapframe->s0 = p->trapframe->s0;
   p->retrapframe->s1 = p->trapframe->s1;
+  p->retrapframe->a0 = p->trapframe->a0;
   p->retrapframe->a1 = p->trapframe->a1;
   p->retrapframe->a2 = p->trapframe->a2;
   p->retrapframe->a3 = p->trapframe->a3;
@@ -149,8 +154,14 @@ restoreregister(void)
 {
   struct proc *p = myproc();
 
+  p->trapframe->kernel_satp = p->retrapframe->kernel_satp;
+  p->trapframe->kernel_sp = p->retrapframe->kernel_sp;
+  p->trapframe->kernel_trap = p->retrapframe->kernel_trap;
   p->trapframe->epc = p->retrapframe->epc;
-  p->trapframe->a0 = p->retrapframe->a0;
+  p->trapframe->kernel_hartid = p->retrapframe->kernel_hartid;
+
+  p->trapframe->epc = p->retrapframe->epc;
+  p->trapframe->ra = p->retrapframe->ra;
   p->trapframe->sp = p->retrapframe->sp;
   p->trapframe->gp = p->retrapframe->gp;
   p->trapframe->tp = p->retrapframe->tp;
@@ -159,6 +170,7 @@ restoreregister(void)
   p->trapframe->t2 = p->retrapframe->t2;
   p->trapframe->s0 = p->retrapframe->s0;
   p->trapframe->s1 = p->retrapframe->s1;
+  p->trapframe->a0 = p->retrapframe->a0;
   p->trapframe->a1 = p->retrapframe->a1;
   p->trapframe->a2 = p->retrapframe->a2;
   p->trapframe->a3 = p->retrapframe->a3;
@@ -215,19 +227,21 @@ usertrapret(void)
   w_sstatus(x);
 
   // jump to alarm handler
-  if (p->handler != 0 && p->lticks == 0) {
+  if (p->handler != 0 && (p->lticks == p->ticks) && p->handling == 0) {
+    p->handling = 1;
     // save register
     saveregister();
-    // printf("call handler, jump to :%p\n", (uint64 *)p->handler);
+    // printf("call handler, jump to :%p, raw: %p\n", (uint64 *)p->handler, (uint64 *)p->trapframe->epc);
     p->trapframe->epc = (uint64)p->handler;
-    p->lticks--;
   }
   // alram handler done, return to user code
-  else if (p->handler != 0 && p->done == 1){
+  else if (p->handler != 0 && p->handlerdone == 1){
+    p->handlerdone = 0;
+    p->handling = 0;
+    p->lticks = 0;
     // restore register
     restoreregister();
-    // printf("after done, jump to :%p\n", (uint64 *)p->epc);
-    p->done = 0;
+    // printf("done, return to :%p\n", (uint64 *)p->trapframe->epc);
   } 
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);
