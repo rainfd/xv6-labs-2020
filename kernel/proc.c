@@ -111,8 +111,8 @@ found:
   p->ticks = 0;
   p->lticks = 0;
   p->handler = 0;
-  p->handlerdone = 0;
-  p->handling = 0;
+  // p->handlerdone = 0;
+  // p->handling = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -146,6 +146,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if (p->retrapframe)
+    kfree((void*)p->retrapframe);
+  p->retrapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;

@@ -69,10 +69,11 @@ usertrap(void)
     // ok
     // time tick
     if (which_dev == 2) {
-      if (p->handler != 0 && p->handling == 0) {
-          if (p->lticks > p->ticks)
-            p->lticks = 0;
-          p->lticks++;
+      p->lticks++;
+      if (p->handler != 0 && p->lticks == p->ticks) {
+          p->lticks = 0;
+          switchtrapframe(p->retrapframe, p->trapframe);
+          p->trapframe->epc = (uint64)p->handler;
       }
         
     }
@@ -96,103 +97,90 @@ usertrap(void)
 // save register
 //
 void
-saveregister(void)
+switchtrapframe(struct trapframe *dst, struct trapframe *src)
 {
-  struct proc *p = myproc();
-
-  // init
-  if (p->retrapframe == 0) {
-    if((p->retrapframe = (struct trapframe *)kalloc()) == 0){
-      panic("retrapframe kalloc");
-    }
-  }
-
-  p->retrapframe->kernel_satp = p->trapframe->kernel_satp;
-  p->retrapframe->kernel_sp = p->trapframe->kernel_sp;
-  p->retrapframe->kernel_trap = p->trapframe->kernel_trap;
-  p->retrapframe->epc = p->trapframe->epc;
-  p->retrapframe->kernel_hartid = p->trapframe->kernel_hartid;
-
-  p->retrapframe->ra = p->trapframe->ra;
-  p->retrapframe->sp = p->trapframe->sp;
-  p->retrapframe->gp = p->trapframe->gp;
-  p->retrapframe->tp = p->trapframe->tp;
-  p->retrapframe->t0 = p->trapframe->t0;
-  p->retrapframe->t1 = p->trapframe->t1;
-  p->retrapframe->t2 = p->trapframe->t2;
-  p->retrapframe->s0 = p->trapframe->s0;
-  p->retrapframe->s1 = p->trapframe->s1;
-  p->retrapframe->a0 = p->trapframe->a0;
-  p->retrapframe->a1 = p->trapframe->a1;
-  p->retrapframe->a2 = p->trapframe->a2;
-  p->retrapframe->a3 = p->trapframe->a3;
-  p->retrapframe->a4 = p->trapframe->a4;
-  p->retrapframe->a5 = p->trapframe->a5;
-  p->retrapframe->a6 = p->trapframe->a6;
-  p->retrapframe->a7 = p->trapframe->a7;
-  p->retrapframe->s2 = p->trapframe->s2;
-  p->retrapframe->s3 = p->trapframe->s3;
-  p->retrapframe->s4 = p->trapframe->s4;
-  p->retrapframe->s5 = p->trapframe->s5;
-  p->retrapframe->s6 = p->trapframe->s6;
-  p->retrapframe->s7 = p->trapframe->s7;
-  p->retrapframe->s8 = p->trapframe->s8;
-  p->retrapframe->s9 = p->trapframe->s9;
-  p->retrapframe->s10 = p->trapframe->s10;
-  p->retrapframe->s11 = p->trapframe->s11;
-  p->retrapframe->t3 = p->trapframe->t3;
-  p->retrapframe->t4 = p->trapframe->t4;
-  p->retrapframe->t5 = p->trapframe->t5;
-  p->retrapframe->t6 = p->trapframe->t6;
+  dst->kernel_satp = src->kernel_satp;
+  dst->kernel_sp = src->kernel_sp;
+  dst->kernel_trap = src->kernel_trap;
+  dst->epc = src->epc;
+  dst->kernel_hartid = src->kernel_hartid;
+  dst->ra = src->ra;
+  dst->sp = src->sp;
+  dst->gp = src->gp;
+  dst->tp = src->tp;
+  dst->t0 = src->t0;
+  dst->t1 = src->t1;
+  dst->t2 = src->t2;
+  dst->s0 = src->s0;
+  dst->s1 = src->s1;
+  dst->a0 = src->a0;
+  dst->a1 = src->a1;
+  dst->a2 = src->a2;
+  dst->a3 = src->a3;
+  dst->a4 = src->a4;
+  dst->a5 = src->a5;
+  dst->a6 = src->a6;
+  dst->a7 = src->a7;
+  dst->s2 = src->s2;
+  dst->s3 = src->s3;
+  dst->s4 = src->s4;
+  dst->s5 = src->s5;
+  dst->s6 = src->s6;
+  dst->s7 = src->s7;
+  dst->s8 = src->s8;
+  dst->s9 = src->s9;
+  dst->s10 = src->s10;
+  dst->s11 = src->s11;
+  dst->t3 = src->t3;
+  dst->t4 = src->t4;
+  dst->t5 = src->t5;
+  dst->t6 = src->t6;
 }
 
-//
-// restore register
-//
-void
-restoreregister(void)
-{
-  struct proc *p = myproc();
 
-  p->trapframe->kernel_satp = p->retrapframe->kernel_satp;
-  p->trapframe->kernel_sp = p->retrapframe->kernel_sp;
-  p->trapframe->kernel_trap = p->retrapframe->kernel_trap;
-  p->trapframe->epc = p->retrapframe->epc;
-  p->trapframe->kernel_hartid = p->retrapframe->kernel_hartid;
 
-  p->trapframe->epc = p->retrapframe->epc;
-  p->trapframe->ra = p->retrapframe->ra;
-  p->trapframe->sp = p->retrapframe->sp;
-  p->trapframe->gp = p->retrapframe->gp;
-  p->trapframe->tp = p->retrapframe->tp;
-  p->trapframe->t0 = p->retrapframe->t0;
-  p->trapframe->t1 = p->retrapframe->t1;
-  p->trapframe->t2 = p->retrapframe->t2;
-  p->trapframe->s0 = p->retrapframe->s0;
-  p->trapframe->s1 = p->retrapframe->s1;
-  p->trapframe->a0 = p->retrapframe->a0;
-  p->trapframe->a1 = p->retrapframe->a1;
-  p->trapframe->a2 = p->retrapframe->a2;
-  p->trapframe->a3 = p->retrapframe->a3;
-  p->trapframe->a4 = p->retrapframe->a4;
-  p->trapframe->a5 = p->retrapframe->a5;
-  p->trapframe->a6 = p->retrapframe->a6;
-  p->trapframe->a7 = p->retrapframe->a7;
-  p->trapframe->s2 = p->retrapframe->s2;
-  p->trapframe->s3 = p->retrapframe->s3;
-  p->trapframe->s4 = p->retrapframe->s4;
-  p->trapframe->s5 = p->retrapframe->s5;
-  p->trapframe->s6 = p->retrapframe->s6;
-  p->trapframe->s7 = p->retrapframe->s7;
-  p->trapframe->s8 = p->retrapframe->s8;
-  p->trapframe->s9 = p->retrapframe->s9;
-  p->trapframe->s10 = p->retrapframe->s10;
-  p->trapframe->s11 = p->retrapframe->s11;
-  p->trapframe->t3 = p->retrapframe->t3;
-  p->trapframe->t4 = p->retrapframe->t4;
-  p->trapframe->t5 = p->retrapframe->t5;
-  p->trapframe->t6 = p->retrapframe->t6;
-}
+// void
+// restoreregister(void)
+// {
+  // struct proc *p = myproc();
+// 
+  // p->trapframe->kernel_satp = p->retrapframe->kernel_satp;
+  // p->trapframe->kernel_sp = p->retrapframe->kernel_sp;
+  // p->trapframe->kernel_trap = p->retrapframe->kernel_trap;
+  // p->trapframe->epc = p->retrapframe->epc;
+  // p->trapframe->kernel_hartid = p->retrapframe->kernel_hartid;
+  // p->trapframe->ra = p->retrapframe->ra;
+  // p->trapframe->sp = p->retrapframe->sp;
+  // p->trapframe->gp = p->retrapframe->gp;
+  // p->trapframe->tp = p->retrapframe->tp;
+  // p->trapframe->t0 = p->retrapframe->t0;
+  // p->trapframe->t1 = p->retrapframe->t1;
+  // p->trapframe->t2 = p->retrapframe->t2;
+  // p->trapframe->s0 = p->retrapframe->s0;
+  // p->trapframe->s1 = p->retrapframe->s1;
+  // p->trapframe->a0 = p->retrapframe->a0;
+  // p->trapframe->a1 = p->retrapframe->a1;
+  // p->trapframe->a2 = p->retrapframe->a2;
+  // p->trapframe->a3 = p->retrapframe->a3;
+  // p->trapframe->a4 = p->retrapframe->a4;
+  // p->trapframe->a5 = p->retrapframe->a5;
+  // p->trapframe->a6 = p->retrapframe->a6;
+  // p->trapframe->a7 = p->retrapframe->a7;
+  // p->trapframe->s2 = p->retrapframe->s2;
+  // p->trapframe->s3 = p->retrapframe->s3;
+  // p->trapframe->s4 = p->retrapframe->s4;
+  // p->trapframe->s5 = p->retrapframe->s5;
+  // p->trapframe->s6 = p->retrapframe->s6;
+  // p->trapframe->s7 = p->retrapframe->s7;
+  // p->trapframe->s8 = p->retrapframe->s8;
+  // p->trapframe->s9 = p->retrapframe->s9;
+  // p->trapframe->s10 = p->retrapframe->s10;
+  // p->trapframe->s11 = p->retrapframe->s11;
+  // p->trapframe->t3 = p->retrapframe->t3;
+  // p->trapframe->t4 = p->retrapframe->t4;
+  // p->trapframe->t5 = p->retrapframe->t5;
+  // p->trapframe->t6 = p->retrapframe->t6;
+// }
 
 //
 // return to user space
@@ -227,22 +215,22 @@ usertrapret(void)
   w_sstatus(x);
 
   // jump to alarm handler
-  if (p->handler != 0 && (p->lticks == p->ticks) && p->handling == 0) {
-    p->handling = 1;
-    // save register
-    saveregister();
-    // printf("call handler, jump to :%p, raw: %p\n", (uint64 *)p->handler, (uint64 *)p->trapframe->epc);
-    p->trapframe->epc = (uint64)p->handler;
-  }
-  // alram handler done, return to user code
-  else if (p->handler != 0 && p->handlerdone == 1){
-    p->handlerdone = 0;
-    p->handling = 0;
-    p->lticks = 0;
-    // restore register
-    restoreregister();
-    // printf("done, return to :%p\n", (uint64 *)p->trapframe->epc);
-  } 
+  // if (p->handler != 0 && (p->lticks == p->ticks) && p->handling == 0) {
+  //   p->handling = 1;
+  //   // save register
+  //   saveregister();
+  //   // printf("call handler, jump to :%p, raw: %p\n", (uint64 *)p->handler, (uint64 *)p->trapframe->epc);
+  //   p->trapframe->epc = (uint64)p->handler;
+  // }
+  // // alram handler done, return to user code
+  // else if (p->handler != 0 && p->handlerdone == 1){
+  //   p->handlerdone = 0;
+  //   p->handling = 0;
+  //   p->lticks = 0;
+  //   // restore register
+  //   restoreregister();
+  //   // printf("done, return to :%p\n", (uint64 *)p->trapframe->epc);
+  // } 
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);
 

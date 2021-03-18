@@ -10,7 +10,7 @@ sigalarm(int ticks, void (*handler)())
 {
   struct proc *p = myproc();
   p->ticks = ticks;
-  p->lticks = ticks;
+  p->lticks = 0;
   p->handler = handler;
   return 0;
 }
@@ -25,6 +25,14 @@ sys_sigalarm(void)
     return -1;
   if (argaddr(0, &addr) < 0)
     return -1;
+
+  struct proc *p = myproc();
+  if (p->retrapframe == 0) {
+    if((p->retrapframe = (struct trapframe *)kalloc()) == 0){
+      panic("retrapframe kalloc");
+    }
+  }
+
   sigalarm(ticks, (void (*)())addr);
   return 0;
 }
@@ -34,6 +42,6 @@ uint64
 sys_sigreturn(void)
 {
   struct proc *p = myproc();
-  p->handlerdone = 1;
+  switchtrapframe(p->trapframe, p->retrapframe);
   return 0;
 }

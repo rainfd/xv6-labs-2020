@@ -109,6 +109,6 @@ struct proc {
   int lticks;                    // ticks left after last call
   void (*handler)();             // alarm handler
   struct trapframe *retrapframe; // data page for restore
-  uint64 handling;                 // handler handling
-  uint64 handlerdone;                   // handler handlerdone
+  // uint64 handling;                 // handler handling
+  // uint64 handlerdone;                   // handler handlerdone
 };
