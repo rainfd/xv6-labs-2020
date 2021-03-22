@@ -33,12 +33,11 @@ trapinithart(void)
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
-void
-usertrap(void)
+void usertrap(void)
 {
   int which_dev = 0;
 
-  if((r_sstatus() & SSTATUS_SPP) != 0)
+  if ((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
   // send interrupts and exceptions to kerneltrap(),
@@ -46,14 +45,15 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
+
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
+
+  if (r_scause() == 8)
+  {
     // system call
 
-    if(p->killed)
+    if (p->killed)
       exit(-1);
 
     // sepc points to the ecall instruction,
@@ -65,19 +65,49 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  }
+  // else if (r_scause() == 13 || r_scause() == 15)
+  else if (r_scause() == 15)
+  {
+    // page fault
+    char *mem;
+    uint64 va;
+    pte_t *pte, ppte;
+    uint flags;
+
+    if ((mem == kalloc()) == 0)
+    {
+      p->killed = 1;
+      goto kill;
+    }
+    va = r_stval();
+    pte = walk(p->pagetable, va, 0);
+    flags = PTE_FLAGS(*pte) & PTE_W;
+    if (mappages(p->pagetable, va, PGSIZE, mem, flags) != 0)
+    {
+      kfree(mem);
+      p->killed = 1;
+      goto kill;
+    }
+    ppte = walkaddr(p->pagetable, va);
+  }
+  else if ((which_dev = devintr()) != 0)
+  {
     // ok
-  } else {
+  }
+  else
+  {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
   }
 
-  if(p->killed)
+kill:
+  if (p->killed)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if (which_dev == 2)
     yield();
 
   usertrapret();
