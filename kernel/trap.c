@@ -16,15 +16,13 @@ void kernelvec();
 
 extern int devintr();
 
-void
-trapinit(void)
+void trapinit(void)
 {
   initlock(&tickslock, "time");
 }
 
 // set up to take exceptions and traps while in the kernel.
-void
-trapinithart(void)
+void trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
 }
@@ -66,30 +64,64 @@ void usertrap(void)
 
     syscall();
   }
-  // else if (r_scause() == 13 || r_scause() == 15)
-  else if (r_scause() == 15)
+  else if (r_scause() == 13 || r_scause() == 15 || r_scause() == 12)
+  // else if (r_scause() == 12)
   {
-    // page fault
+    // Instruction page fault
+
     char *mem;
-    uint64 va;
-    pte_t *pte, ppte;
+    uint64 va, pa;
+    pte_t *pte;
     uint flags;
 
-    if ((mem == kalloc()) == 0)
+    // printf("page falut\n");
+    // printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+    // printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+
+    va = PGROUNDDOWN(r_stval());
+    pa = walkaddr(p->pagetable, va);
+    if (pa == 0)
     {
+      // invalid pa
       p->killed = 1;
       goto kill;
     }
-    va = r_stval();
-    pte = walk(p->pagetable, va, 0);
-    flags = PTE_FLAGS(*pte) & PTE_W;
-    if (mappages(p->pagetable, va, PGSIZE, mem, flags) != 0)
+    pte = walkpte(p->pagetable, va);
+
+    // invalid page
+    if ((*pte & COW) == 0)
+    {
+      printf("not cow page\n");
+      p->killed = 1;
+      goto kill;
+    }
+
+    // counter 1 reset PTE_W
+    if (mcounter[pa / PGSIZE] == 1)
+    {
+      *pte = (*pte | PTE_W) & ~COW;
+      goto kill;
+    }
+
+    // alloc new page
+    if ((mem = kalloc()) == 0)
+    {
+      p->killed = 1;
+      printf("kalloc failed\n");
+      goto kill;
+    }
+    memmove(mem, (void *)pa, PGSIZE);
+    *pte = (*pte & ~PTE_V) & ~COW; // clear valid and cow bit
+    flags = PTE_FLAGS(*pte) | PTE_W;
+    if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0)
     {
       kfree(mem);
+      printf("mappages failed\n");
       p->killed = 1;
       goto kill;
     }
-    ppte = walkaddr(p->pagetable, va);
+
+    mcounter[pa / PGSIZE]--;
   }
   else if ((which_dev = devintr()) != 0)
   {
@@ -116,8 +148,7 @@ kill:
 //
 // return to user space
 //
-void
-usertrapret(void)
+void usertrapret(void)
 {
   struct proc *p = myproc();
 
@@ -134,11 +165,11 @@ usertrapret(void)
   p->trapframe->kernel_satp = r_satp();         // kernel page table
   p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
   p->trapframe->kernel_trap = (uint64)usertrap;
-  p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
+  p->trapframe->kernel_hartid = r_tp(); // hartid for cpuid()
 
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
-  
+
   // set S Previous Privilege mode to User.
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
@@ -151,36 +182,36 @@ usertrapret(void)
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
 
-  // jump to trampoline.S at the top of memory, which 
+  // jump to trampoline.S at the top of memory, which
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
-  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  ((void (*)(uint64, uint64))fn)(TRAPFRAME, satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
 // on whatever the current kernel stack is.
-void 
-kerneltrap()
+void kerneltrap()
 {
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
-  
-  if((sstatus & SSTATUS_SPP) == 0)
+
+  if ((sstatus & SSTATUS_SPP) == 0)
     panic("kerneltrap: not from supervisor mode");
-  if(intr_get() != 0)
+  if (intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
 
-  if((which_dev = devintr()) == 0){
+  if ((which_dev = devintr()) == 0)
+  {
     printf("scause %p\n", scause);
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  if (which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
     yield();
 
   // the yield() may have caused some traps to occur,
@@ -189,8 +220,7 @@ kerneltrap()
   w_sstatus(sstatus);
 }
 
-void
-clockintr()
+void clockintr()
 {
   acquire(&tickslock);
   ticks++;
@@ -203,48 +233,57 @@ clockintr()
 // returns 2 if timer interrupt,
 // 1 if other device,
 // 0 if not recognized.
-int
-devintr()
+int devintr()
 {
   uint64 scause = r_scause();
 
-  if((scause & 0x8000000000000000L) &&
-     (scause & 0xff) == 9){
+  if ((scause & 0x8000000000000000L) &&
+      (scause & 0xff) == 9)
+  {
     // this is a supervisor external interrupt, via PLIC.
 
     // irq indicates which device interrupted.
     int irq = plic_claim();
 
-    if(irq == UART0_IRQ){
+    if (irq == UART0_IRQ)
+    {
       uartintr();
-    } else if(irq == VIRTIO0_IRQ){
+    }
+    else if (irq == VIRTIO0_IRQ)
+    {
       virtio_disk_intr();
-    } else if(irq){
+    }
+    else if (irq)
+    {
       printf("unexpected interrupt irq=%d\n", irq);
     }
 
     // the PLIC allows each device to raise at most one
     // interrupt at a time; tell the PLIC the device is
     // now allowed to interrupt again.
-    if(irq)
+    if (irq)
       plic_complete(irq);
 
     return 1;
-  } else if(scause == 0x8000000000000001L){
+  }
+  else if (scause == 0x8000000000000001L)
+  {
     // software interrupt from a machine-mode timer interrupt,
     // forwarded by timervec in kernelvec.S.
 
-    if(cpuid() == 0){
+    if (cpuid() == 0)
+    {
       clockintr();
     }
-    
+
     // acknowledge the software interrupt by clearing
     // the SSIP bit in sip.
     w_sip(r_sip() & ~2);
 
     return 2;
-  } else {
+  }
+  else
+  {
     return 0;
   }
 }
-
