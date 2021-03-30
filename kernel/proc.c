@@ -144,7 +144,7 @@ static void
 freeproc(struct proc *p)
 {
   // debug
-  printf("\n  freeproc p: %d\n", p->pid);
+  printf("\n  freeproc p: %d before", p->pid);
   kcount();
 
   if (p->trapframe)
@@ -162,6 +162,7 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->state = UNUSED;
 
+  printf("  freeproc p: %d after", p->pid);
   kcount();
 }
 

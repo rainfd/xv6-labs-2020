@@ -118,16 +118,10 @@ void kcount(void)
 
 void kadd(void *pa, int n)
 {
-  // acquire(&kmem.lock);
   krel[(uint64)pa / PGSIZE] += n;
-  // release(&kmem.lock);
 }
 
 uint kget(void *pa)
 {
-  uint n;
-  // acquire(&kmem.lock);
-  n = krel[(uint64)pa / PGSIZE];
-  // release(&kmem.lock);
-  return n;
+  return krel[(uint64)pa / PGSIZE];
 }
