@@ -124,7 +124,7 @@ void usertrap(void)
       p->killed = 1;
       goto kill;
     }
-    kadd((void *)pa, -1);
+    kadd((void *)pa, -1, 1);
   }
   else if ((which_dev = devintr()) != 0)
   {

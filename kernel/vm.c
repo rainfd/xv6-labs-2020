@@ -350,7 +350,7 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if (mappages(new, i, PGSIZE, (uint64)pa, flags) != 0)
       goto err;
     *pte = (*pte | PTE_C) & ~PTE_W;
-    kadd((void *)pa, 1);
+    kadd((void *)pa, 1, 0);
   }
   return 0;
 
@@ -377,7 +377,6 @@ void uvmclear(pagetable_t pagetable, uint64 va)
 int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-  uint flags;
   pte_t *pte;
 
   while (len > 0)
@@ -395,30 +394,32 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     // user dstva cow page
     if (*pte & PTE_C)
     {
-      if (kget((void *)pa0) == 1)
-        *pte = (*pte | PTE_W) & ~PTE_C;
-      else if (kget((void *)pa0) > 1)
-      {
-        char *mem;
+      // uint flags;
 
-        if ((mem = kalloc()) == 0)
-          return -1;
-        *pte &= ~PTE_V;
-        flags = (PTE_FLAGS(*pte) | PTE_W) & ~PTE_C;
-        if (mappages(pagetable, va0, PGSIZE, (uint64)mem, flags) != 0)
-        {
-          kfree(mem);
-          *pte |= PTE_V; // clear valid and cow bit
-          return -1;
-        }
-        kadd((void *)pa0, -1);
-        pa0 = (uint64)mem;
-      }
-      else
-      {
-        printf("invalid reference count va%p\n", va0);
-        return -1;
-      }
+      // if (kget((void *)pa0) == 1)
+      //   *pte = (*pte | PTE_W) & ~PTE_C;
+      // else if (kget((void *)pa0) > 1)
+      // {
+      //   char *mem;
+
+      //   if ((mem = kalloc()) == 0)
+      //     return -1;
+      //   *pte &= ~PTE_V;
+      //   flags = (PTE_FLAGS(*pte) | PTE_W) & ~PTE_C;
+      //   if (mappages(pagetable, va0, PGSIZE, (uint64)mem, flags) != 0)
+      //   {
+      //     kfree(mem);
+      //     *pte |= PTE_V; // clear valid and cow bit
+      //     return -1;
+      //   }
+      //   kadd((void *)pa0, -1);
+      //   pa0 = (uint64)mem;
+      // }
+      // else
+      // {
+      //   printf("invalid reference count va%p\n", va0);
+      //   return -1;
+      // }
     }
 
     memmove((void *)(pa0 + (dstva - va0)), src, n);

@@ -77,9 +77,13 @@ threetest()
       exit(-1);
     }
     if(pid2 == 0){
+      printf("p3 modify\n");
+      sbrk(0);
       for(char *q = p; q < p + (sz/5)*4; q += 4096){
         *(int*)q = getpid();
       }
+      printf("p3 modify fin\n");
+      sbrk(0);
       for(char *q = p; q < p + (sz/5)*4; q += 4096){
         if(*(int*)q != getpid()){
           printf("wrong content\n");
@@ -88,15 +92,23 @@ threetest()
       }
       exit(-1);
     }
+    printf("p2 modify\n");
+    sbrk(0);
     for(char *q = p; q < p + (sz/2); q += 4096){
       *(int*)q = 9999;
     }
+    printf("p2 modify fin\n");
+    sbrk(0);
     exit(0);
   }
 
+  printf("p1 modify\n");
+  sbrk(0);
   for(char *q = p; q < p + sz; q += 4096){
     *(int*)q = getpid();
   }
+  printf("p1 modify fin\n");
+  sbrk(0);
 
   wait(0);
 
@@ -180,16 +192,18 @@ filetest()
 int
 main(int argc, char *argv[])
 {
-  simpletest();
+  // simpletest();
 
   // check that the first simpletest() freed the physical memory.
-  simpletest();
+  // simpletest();
 
+  sbrk(0);
   threetest();
+  sbrk(0);
   threetest();
-  threetest();
+  // threetest();
 
-  filetest();
+  // filetest();
 
   printf("ALL COW TESTS PASSED\n");
 

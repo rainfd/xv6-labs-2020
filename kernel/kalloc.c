@@ -8,6 +8,7 @@
 #include "spinlock.h"
 #include "riscv.h"
 #include "defs.h"
+#include "proc.h"
 
 void freerange(void *pa_start, void *pa_end);
 
@@ -59,7 +60,8 @@ void kfree(void *pa)
   acquire(&kmem.lock);
   if (kget(pa) > 0)
   {
-    kadd(pa, -1);
+    kadd(pa, -1, 0);
+    // krel[(uint64)r]--;
   }
   if (kget(pa) == 0)
   {
@@ -83,7 +85,8 @@ kalloc(void)
   r = kmem.freelist;
   if (r)
   {
-    kadd((void *)r, 1);
+     kadd((void *)r, 1, 0);
+    // krel[(uint64)r]++;
     kmem.freelist = r->next;
   }
   release(&kmem.lock);
@@ -113,15 +116,23 @@ void kcount(void)
     free++;
     r = r->next;
   }
-  printf("  kcount count: %d sum: %d free: %d\n", count, sum, free);
+  printf("  k p: %d  count: %d sum: %d free: %d\n", myproc()->pid, count, sum, free);
 }
 
-void kadd(void *pa, int n)
+void kadd(void *pa, int n, int lock)
 {
-  krel[(uint64)pa / PGSIZE] += n;
+  if (lock) {
+    acquire(&kmem.lock);
+    krel[(uint64)pa / PGSIZE] += n;
+    release(&kmem.lock);
+  } else {
+    krel[(uint64)pa / PGSIZE] += n;
+  }
 }
 
 uint kget(void *pa)
 {
+  // acquire(&kmem.lock);
   return krel[(uint64)pa / PGSIZE];
+  // release(&kmem.lock)
 }

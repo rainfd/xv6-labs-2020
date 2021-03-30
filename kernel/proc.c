@@ -263,7 +263,16 @@ int growproc(int n)
   }
   else if (n < 0)
   {
+    printf("  sbrk before");
+    kcount();
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+    printf("  sbrk after");
+    kcount();
+  }
+  else if (n == 0)
+  {
+    printf("  sbrk ");
+    kcount();
   }
   p->sz = sz;
   return 0;
@@ -284,8 +293,8 @@ int fork(void)
   }
 
   // debug
-  printf("\n  fork p: %d\n", p->pid);
-  kcount();
+  // printf("\n  p: %d fork %d\n", p->pid, np->pid);
+  // kcount();
 
   // Copy user memory from parent to child.
   if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)

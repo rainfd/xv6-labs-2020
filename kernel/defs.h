@@ -64,7 +64,7 @@ void *kalloc(void);
 void kfree(void *);
 void kinit(void);
 void kcount(void);
-void kadd(void *, int);
+void kadd(void *, int, int);
 uint kget(void *);
 
 // log.c
