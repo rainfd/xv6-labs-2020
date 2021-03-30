@@ -10,12 +10,11 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
-void krfree(void *pa);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
-uint mcounter[PHYSTOP / PGSIZE];
+uint krel[PHYSTOP / PGSIZE];
 
 struct run
 {
@@ -31,6 +30,8 @@ struct
 void kinit()
 {
   initlock(&kmem.lock, "kmem");
+  kmem.freelist = 0;
+  memset(krel, 0, sizeof(uint) * (PHYSTOP / PGSIZE));
   freerange(end, (void *)PHYSTOP);
 }
 
@@ -39,54 +40,34 @@ void freerange(void *pa_start, void *pa_end)
   char *p;
   p = (char *)PGROUNDUP((uint64)pa_start);
   for (; p + PGSIZE <= (char *)pa_end; p += PGSIZE)
-    krfree(p);
-  memset(mcounter, 0, sizeof(uint) * (PHYSTOP / PGSIZE));
-}
-
-// counter kfree
-void kfree(void *pa)
-{
-  struct run *r;
-  uint c;
-
-  if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
-    panic("kfree");
-
-  r = (struct run *)pa;
-
-  acquire(&kmem.lock);
-  c = --mcounter[(uint64)pa / PGSIZE];
-  if (c < 0)
-    panic("kfree counter");
-  if (c == 0)
-  {
-    r->next = kmem.freelist;
-    kmem.freelist = r;
-  }
-  // printf("kfree pa: %x, counter now: %d\n", pa, mcounter[(uint64)pa / PGSIZE]);
-  release(&kmem.lock);
+    kfree(p);
 }
 
 // Free the page of physical memory pointed at by v,
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
-void krfree(void *pa)
+void kfree(void *pa)
 {
   struct run *r;
 
   if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
-
   r = (struct run *)pa;
 
   acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  mcounter[(uint64)pa / PGSIZE] = 0;
-  kmem.freelist = r;
+  if (kget(pa) > 0)
+  {
+    kadd(pa, -1);
+  }
+  if (kget(pa) == 0)
+  {
+    // Fill with junk to catch dangling refs.
+    memset(pa, 1, PGSIZE);
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+  }
   release(&kmem.lock);
 }
 
@@ -102,7 +83,7 @@ kalloc(void)
   r = kmem.freelist;
   if (r)
   {
-    mcounter[(uint64)r / PGSIZE] = 1;
+    kadd((void *)r, 1);
     kmem.freelist = r->next;
   }
   release(&kmem.lock);
@@ -110,4 +91,43 @@ kalloc(void)
   if (r)
     memset((char *)r, 5, PGSIZE); // fill with junk
   return (void *)r;
+}
+
+// count free memory
+void kcount(void)
+{
+  uint count = 0, sum = 0, free = 0;
+  int i;
+  struct run *r;
+
+  for (i = (KERNBASE / PGSIZE); i < PHYSTOP / PGSIZE; i++)
+  {
+    if (krel[i] > 0)
+      count++;
+    sum += krel[i];
+  }
+
+  r = kmem.freelist;
+  while (r != 0)
+  {
+    free++;
+    r = r->next;
+  }
+  printf("  kcount count: %d sum: %d free: %d\n", count, sum, free);
+}
+
+void kadd(void *pa, int n)
+{
+  // acquire(&kmem.lock);
+  krel[(uint64)pa / PGSIZE] += n;
+  // release(&kmem.lock);
+}
+
+uint kget(void *pa)
+{
+  uint n;
+  // acquire(&kmem.lock);
+  n = krel[(uint64)pa / PGSIZE];
+  // release(&kmem.lock);
+  return n;
 }

@@ -64,8 +64,8 @@ void usertrap(void)
 
     syscall();
   }
-  else if (r_scause() == 13 || r_scause() == 15 || r_scause() == 12)
-  // else if (r_scause() == 12)
+  // else if (r_scause() == 13 || r_scause() == 15 || r_scause() == 12)
+  else if (r_scause() == 13 || r_scause() == 15)
   {
     // Instruction page fault
 
@@ -74,54 +74,57 @@ void usertrap(void)
     pte_t *pte;
     uint flags;
 
-    // printf("page falut\n");
-    // printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    // printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-
     va = PGROUNDDOWN(r_stval());
-    pa = walkaddr(p->pagetable, va);
+    pte = walkpte(p->pagetable, va);
+    if (pte == 0)
+    {
+      printf("invalid va: %p\n", va);
+      p->killed = 1;
+      goto kill;
+    }
+
+    pa = PTE2PA(*pte);
     if (pa == 0)
     {
-      // invalid pa
-      p->killed = 1;
-      goto kill;
-    }
-    pte = walkpte(p->pagetable, va);
-
-    // invalid page
-    if ((*pte & COW) == 0)
-    {
-      printf("not cow page\n");
+      printf("invalid va(pa): %p(0)\n", va);
       p->killed = 1;
       goto kill;
     }
 
-    // counter 1 reset PTE_W
-    if (mcounter[pa / PGSIZE] == 1)
+    // not copy on write page
+    if ((*pte & PTE_C) == 0)
     {
-      *pte = (*pte | PTE_W) & ~COW;
+      printf("invalid cow page: %p\n", *pte);
+      p->killed = 1;
+      goto kill;
+    }
+
+    // reference count only 1 && PTE_W not set
+    if ((kget((void *)pa) == 1) && ((*pte & PTE_W) == 0))
+    {
+      // counter 1 reset PTE_W
+      *pte = (*pte | PTE_W) & ~PTE_C;
       goto kill;
     }
 
     // alloc new page
     if ((mem = kalloc()) == 0)
     {
+      printf("rekalloc failed\n");
       p->killed = 1;
-      printf("kalloc failed\n");
       goto kill;
     }
     memmove(mem, (void *)pa, PGSIZE);
-    *pte = (*pte & ~PTE_V) & ~COW; // clear valid and cow bit
+    *pte = (*pte & ~PTE_V) & ~PTE_C; // clear valid and cow bit
     flags = PTE_FLAGS(*pte) | PTE_W;
     if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0)
     {
-      kfree(mem);
       printf("mappages failed\n");
+      kfree(mem);
       p->killed = 1;
       goto kill;
     }
-
-    mcounter[pa / PGSIZE]--;
+    kadd((void *)pa, -1);
   }
   else if ((which_dev = devintr()) != 0)
   {
