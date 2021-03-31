@@ -394,32 +394,34 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     // user dstva cow page
     if (*pte & PTE_C)
     {
-      // uint flags;
+      uint flags;
 
-      // if (kget((void *)pa0) == 1)
-      //   *pte = (*pte | PTE_W) & ~PTE_C;
-      // else if (kget((void *)pa0) > 1)
-      // {
-      //   char *mem;
+      // only on reference
+      if (kget((void *)pa0) == 1)
+        *pte = (*pte | PTE_W) & ~PTE_C;
+      else if (kget((void *)pa0) > 1)
+      {
+        char *mem;
 
-      //   if ((mem = kalloc()) == 0)
-      //     return -1;
-      //   *pte &= ~PTE_V;
-      //   flags = (PTE_FLAGS(*pte) | PTE_W) & ~PTE_C;
-      //   if (mappages(pagetable, va0, PGSIZE, (uint64)mem, flags) != 0)
-      //   {
-      //     kfree(mem);
-      //     *pte |= PTE_V; // clear valid and cow bit
-      //     return -1;
-      //   }
-      //   kadd((void *)pa0, -1);
-      //   pa0 = (uint64)mem;
-      // }
-      // else
-      // {
-      //   printf("invalid reference count va%p\n", va0);
-      //   return -1;
-      // }
+        if ((mem = kalloc()) == 0)
+          return -1;
+        memmove(mem, (void *)pa0, PGSIZE);
+        *pte = *pte & ~PTE_V & ~PTE_C;
+        flags = PTE_FLAGS(*pte) | PTE_W;
+        if (mappages(pagetable, va0, PGSIZE, (uint64)mem, flags) != 0)
+        {
+          kfree(mem);
+          *pte = (*pte | PTE_V) | PTE_C; // clear valid and cow bit
+          return -1;
+        }
+        kadd((void *)pa0, -1, 1);
+        pa0 = (uint64)mem;
+      }
+      else
+      {
+        printf("invalid reference count va%p\n", va0);
+        return -1;
+      }
     }
 
     memmove((void *)(pa0 + (dstva - va0)), src, n);
