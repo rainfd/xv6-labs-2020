@@ -1,6 +1,5 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
-// #include "kernel/defs.h"
 #include "user/user.h"
 
 /* Possible states of a thread: */
@@ -11,7 +10,7 @@
 #define STACK_SIZE 8192
 #define MAX_THREAD 4
 
-struct context
+struct ctx
 {
   uint64 ra; // return address
   uint64 sp; // stack pointer
@@ -30,13 +29,13 @@ struct context
   uint64 s10;
   uint64 s11;
 };
-struct context schedule_context;
+struct ctx schedule_context;
 
 struct thread
 {
   char stack[STACK_SIZE]; /* the thread's stack */
   int state;              /* FREE, RUNNING, RUNNABLE */
-  struct context *context;
+  struct ctx *context;
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
@@ -51,6 +50,11 @@ void thread_init(void)
   // a RUNNABLE thread.
   current_thread = &all_thread[0];
   current_thread->state = RUNNING;
+
+  current_thread->context = (struct ctx *)malloc(sizeof(struct ctx));
+  current_thread->context->ra = 0;
+  memset(current_thread->stack, 0, sizeof(char));
+  current_thread->context->sp = (uint64)&current_thread->stack[STACK_SIZE];
 }
 
 void thread_schedule(void)
@@ -87,7 +91,9 @@ void thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
-    thread_switch((uint64)current_thread->context, (uint64)next_thread->context);
+    // t->state = RUNNABLE;
+    // thread_switch((uint64)current_thread->context, (uint64)t->context);
+    thread_switch((uint64)t->context, (uint64)current_thread->context);
   }
   else
     next_thread = 0;
@@ -104,9 +110,10 @@ void thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
-  t->context = (struct context *)malloc(sizeof(struct context));
-  t->context->ra = thread_schedule;
-  // t->ct->sp = mycpu()->context.sp;
+  t->context = (struct ctx *)malloc(sizeof(struct ctx));
+  t->context->ra = (uint64)func;
+  memset(t->stack, 0, sizeof(char));
+  t->context->sp = (uint64)&t->stack[STACK_SIZE];
 }
 
 void thread_yield(void)
