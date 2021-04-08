@@ -25,15 +25,13 @@ struct
   struct run *freelist;
 } kmem[NCPU];
 
-static char name[NCPU][6] = {0};
+char name[NCPU][6] = {0};
 
 void kinit()
 {
-  char *base = "kmem0";
   for (int i = 0; i < NCPU; i++)
   {
-    strncpy(name[i], base, 5);
-    name[i][4] = i + 48;
+    snprintf(name[i], 6, "kmem%d", i);
     initlock(&kmem[i].lock, name[i]);
   }
   freerange(end, (void *)PHYSTOP);
@@ -56,8 +54,11 @@ void kfree(void *pa)
   struct run *r;
   int id;
 
-  if (((uint64)pa % PGSIZE) != 0)
+  if (((uint64)pa % PGSIZE) != 0) {
+
+    printf("%p\n", pa);
     panic("kfree0");
+  }
   if ((char *)pa < end)
     panic("kfree1");
   if ((uint64)pa >= PHYSTOP)
@@ -70,7 +71,11 @@ void kfree(void *pa)
 
   r = (struct run *)pa;
 
+
+  push_off();
   id = cpuid();
+  pop_off();
+
   acquire(&kmem[id].lock);
   r->next = kmem[id].freelist;
   kmem[id].freelist = r;
@@ -89,6 +94,7 @@ kalloc(void)
   push_off();
   rid = cpuid();
   pop_off();
+
   acquire(&kmem[rid].lock);
   r = kmem[rid].freelist;
   if (r)
