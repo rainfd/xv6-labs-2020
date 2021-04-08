@@ -25,15 +25,16 @@ struct
   struct run *freelist;
 } kmem[NCPU];
 
+static char name[NCPU][6] = {0};
+
 void kinit()
 {
-  char name[6] = "kmem0";
+  char *base = "kmem0";
   for (int i = 0; i < NCPU; i++)
   {
-    char lockname[6] = {0};
-    strncpy(lockname, name, strlen(name));
-    lockname[4] = i + 48;
-    initlock(&kmem[i].lock, lockname);
+    strncpy(name[i], base, 5);
+    name[i][4] = i + 48;
+    initlock(&kmem[i].lock, name[i]);
   }
   freerange(end, (void *)PHYSTOP);
 }
