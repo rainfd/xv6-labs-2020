@@ -85,8 +85,10 @@ kalloc(void)
 {
   struct run *r;
   int id, rid;
-
+ 
+  push_off();
   rid = cpuid();
+  pop_off();
   acquire(&kmem[rid].lock);
   r = kmem[rid].freelist;
   if (r)
