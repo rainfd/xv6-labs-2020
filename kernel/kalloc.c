@@ -54,7 +54,8 @@ void kfree(void *pa)
   struct run *r;
   int id;
 
-  if (((uint64)pa % PGSIZE) != 0) {
+  if (((uint64)pa % PGSIZE) != 0)
+  {
 
     printf("%p\n", pa);
     panic("kfree0");
@@ -70,7 +71,6 @@ void kfree(void *pa)
   memset(pa, 1, PGSIZE);
 
   r = (struct run *)pa;
-
 
   push_off();
   id = cpuid();
@@ -89,35 +89,34 @@ void *
 kalloc(void)
 {
   struct run *r;
-  int id, rid;
- 
+  int id;
+
   push_off();
-  rid = cpuid();
+  id = cpuid();
   pop_off();
 
-  acquire(&kmem[rid].lock);
-  r = kmem[rid].freelist;
+  acquire(&kmem[id].lock);
+  r = kmem[id].freelist;
   if (r)
-    kmem[rid].freelist = r->next;
+    kmem[id].freelist = r->next;
   else
   {
     // steal mem
-    for (int i = 1; i < NCPU; i++)
+    for (int i = 0; i < NCPU; i++)
     {
-      id = rid + i;
-      if (id > NCPU)
-        id -= NCPU;
+      if (i == id)
+        continue;
 
-      acquire(&kmem[id].lock);
-      r = kmem[id].freelist;
+      acquire(&kmem[i].lock);
+      r = kmem[i].freelist;
       if (r)
-        kmem[id].freelist = r->next;
-      release(&kmem[id].lock);
+        kmem[i].freelist = r->next;
+      release(&kmem[i].lock);
       if (r)
         break;
     }
   }
-  release(&kmem[rid].lock);
+  release(&kmem[id].lock);
 
   if (r)
     memset((char *)r, 5, PGSIZE); // fill with junk
